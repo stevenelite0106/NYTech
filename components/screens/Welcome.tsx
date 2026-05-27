@@ -33,7 +33,7 @@ export default function Welcome({ onBegin }: { onBegin: () => void }) {
           who already <em>made it</em>.
         </h1>
         <p className="subtext">
-          One take. One question.<br />
+          One take.<br />
           Ten days from now, you&rsquo;ll hear it back.
         </p>
         <button className="linear-btn" style={{ marginTop: 40 }} onClick={onBegin} autoFocus>
