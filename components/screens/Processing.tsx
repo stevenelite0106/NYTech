@@ -13,25 +13,79 @@ type Props = {
   onError: () => void;
 };
 
+/**
+ * Stage timeline. Times are cumulative seconds inside the 45s theatrical
+ * window. The "Uploading to your vault" stage syncs to the real upload —
+ * it cannot move to `done` until the real upload result arrives, even if
+ * its clock window has elapsed.
+ */
+type Stage = {
+  id: string;
+  name: string;
+  subtext: string;
+  startSec: number;
+  endSec: number;
+  /** True for the one stage that gates on the real network upload result. */
+  syncsToUpload?: boolean;
+};
+
+const STAGES: Stage[] = [
+  { id: "receive",   name: "Receiving your take",      subtext: "Captured, safe with us",            startSec: 0,    endSec: 5 },
+  { id: "encode",    name: "Encoding audio",           subtext: "Preserving every breath",           startSec: 5,    endSec: 12 },
+  { id: "seal",      name: "Sealing the envelope",     subtext: "Tamper-proof for the next ten days", startSec: 12,   endSec: 19 },
+  { id: "upload",    name: "Uploading to your vault",  subtext: "Private. Yours only.",              startSec: 19,   endSec: 32, syncsToUpload: true },
+  { id: "schedule",  name: "Scheduling delivery",      subtext: "Ten days from now, on the dot",     startSec: 32,   endSec: 39 },
+  { id: "appoint",   name: "Setting the appointment",  subtext: "Your future self has been notified", startSec: 39,   endSec: 45 },
+];
+
+type StageStatus = "pending" | "active" | "done";
+
+type StageState = {
+  status: StageStatus;
+  /** 0..1 fill within the stage's own window. */
+  pct: number;
+};
+
+function stageState(
+  stage: Stage,
+  elapsedSec: number,
+  uploadDone: boolean
+): StageState {
+  if (elapsedSec < stage.startSec) {
+    return { status: "pending", pct: 0 };
+  }
+  if (elapsedSec >= stage.endSec) {
+    if (stage.syncsToUpload && !uploadDone) {
+      return { status: "active", pct: 1 };
+    }
+    return { status: "done", pct: 1 };
+  }
+  const pct = (elapsedSec - stage.startSec) / (stage.endSec - stage.startSec);
+  return { status: "active", pct };
+}
+
 export default function Processing({ session, onComplete }: Props) {
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState("Preparing delivery to your future self");
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [uploadDone, setUploadDone] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const completedRef = useRef(false);
   const uploadStartedRef = useRef(false);
   const uploadResultRef = useRef<{ deliverAt: Date } | null>(null);
 
-  // Progress bar fills over 45s regardless of upload.
-  // Loop continues past 100% until upload result arrives, so completion is
-  // never lost if the upload finishes after the bar fills.
+  // Theatrical clock. Drives all stage progress + the overall meter. Continues
+  // past 45s if the upload hasn't finished — the screen stays on the Uploading
+  // stage until the real upload resolves.
   useEffect(() => {
     const start = performance.now();
     let raf = 0;
     const tick = () => {
-      const elapsed = performance.now() - start;
-      const pct = Math.min(1, elapsed / THEATRICAL_DURATION_MS);
-      setProgress(pct);
-      if (uploadResultRef.current && pct >= 1 && !completedRef.current) {
+      const elapsed = (performance.now() - start) / 1000;
+      setElapsedSec(elapsed);
+      const finished =
+        uploadResultRef.current &&
+        elapsed >= THEATRICAL_DURATION_MS / 1000 &&
+        !completedRef.current;
+      if (finished && uploadResultRef.current) {
         completedRef.current = true;
         onComplete(uploadResultRef.current.deliverAt);
         return;
@@ -65,19 +119,18 @@ export default function Processing({ session, onComplete }: Props) {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = (await res.json()) as { deliverAt: string };
           uploadResultRef.current = { deliverAt: new Date(data.deliverAt) };
-          setStatus("Preparing delivery to your future self");
+          setUploadDone(true);
           return;
-        } catch (err) {
+        } catch {
           if (attempt < MAX_UPLOAD_RETRIES) {
-            setStatus("Reconnecting");
             await wait(1500 * attempt);
           } else {
             queueOffline(session);
-            setStatus("Saved locally — will sync");
             const fallbackDeliverAt = new Date(
               Date.now() + (Number(process.env.NEXT_PUBLIC_DELIVERY_DAYS) || 10) * 86400_000
             );
             uploadResultRef.current = { deliverAt: fallbackDeliverAt };
+            setUploadDone(true);
             return;
           }
         }
@@ -88,33 +141,69 @@ export default function Processing({ session, onComplete }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
+  const overallPct = Math.min(1, elapsedSec / (THEATRICAL_DURATION_MS / 1000));
+  const remainingSec = Math.max(
+    0,
+    Math.ceil(THEATRICAL_DURATION_MS / 1000 - elapsedSec)
+  );
+
   return (
     <section className="stage fade-in">
       <header className="stage-header">
         <span className="brand-lockup">
           <Logo height={26} />
         </span>
-        <span className="meta">Processing · Take 01 · {Math.round(progress * 100)}%</span>
+        <span className="meta">Processing · Take 01 · {Math.round(overallPct * 100)}%</span>
       </header>
 
       <div className="stage-body">
-        <div className="processing-stack">
-          <span className="eyebrow">Take received</span>
+        <span className="eyebrow">Processing your take</span>
+        <hr className="rule" />
 
-          <p className="processing-text">{status}</p>
+        <ol className="stage-list" aria-label="Processing stages">
+          {STAGES.map((stage) => {
+            const s = stageState(stage, elapsedSec, uploadDone);
+            const showRetrying =
+              stage.syncsToUpload && s.status === "active" && retrying;
+            return (
+              <li key={stage.id} className={`stage-row ${s.status}`}>
+                <span className="stage-mark" aria-hidden>
+                  {s.status === "done" ? "✓" : s.status === "active" ? "" : ""}
+                </span>
+                <div className="stage-content">
+                  <span className="stage-name">{stage.name}</span>
+                  <span className="stage-sub">
+                    {showRetrying ? "Reconnecting · staying with you" : stage.subtext}
+                  </span>
+                  {s.status === "active" && (
+                    <span className="stage-meter" aria-hidden>
+                      <span
+                        className="stage-meter-fill"
+                        style={{ width: `${Math.round(s.pct * 100)}%` }}
+                      />
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
 
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
-          </div>
+        <hr className="rule" style={{ marginTop: 32 }} />
 
-          <p className="processing-sub">
-            {retrying ? "Reconnecting · do not close" : "Do not close this window"}
-          </p>
+        <div className="overall-meter">
+          <span className="overall-percent">
+            {Math.round(overallPct * 100)}%
+          </span>
+          <span className="overall-divider">·</span>
+          <span className="overall-remaining">
+            {remainingSec === 0 ? "Almost there" : `${remainingSec} seconds remaining`}
+          </span>
         </div>
       </div>
 
       <footer className="stage-footer">
-        <span>Encoding · Hashing · Sealing envelope</span>
+        <span>Do not close this window</span>
         <span>Mental fitness infrastructure</span>
       </footer>
     </section>
