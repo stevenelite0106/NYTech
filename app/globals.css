@@ -78,8 +78,18 @@ input, textarea { font: inherit; color: inherit; }
   display: flex;
   flex-direction: column;
   padding: clamp(24px, 5vh, 56px) clamp(24px, 6vw, 80px);
+  /* Layered: photo at the bottom; a centered radial scrim of Lavender Mist
+     on top to preserve headline legibility while letting the photo breathe
+     at the edges. Final solid color is a safety fallback if the image 404s. */
   background:
-    radial-gradient(ellipse at top, rgba(180, 180, 219, 0.22), transparent 60%),
+    radial-gradient(
+      ellipse at center,
+      rgba(247, 247, 255, 0.85) 0%,
+      rgba(247, 247, 255, 0.62) 45%,
+      rgba(247, 247, 255, 0.35) 80%,
+      rgba(247, 247, 255, 0.25) 100%
+    ),
+    url("/brand/bg.png") center/cover no-repeat,
     var(--bg);
 }
 
