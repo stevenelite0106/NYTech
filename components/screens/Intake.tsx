@@ -64,7 +64,7 @@ export default function Intake({ initial, onContinue }: Props) {
           </div>
 
           <div className="field">
-            <label className="field-label" htmlFor="focus">What are you becoming right now?</label>
+            <label className="field-label" htmlFor="focus">What does winning look like for you in the next 12 months?</label>
             <input
               id="focus"
               className="field-input"

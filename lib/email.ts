@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import type { SignalData } from "@/lib/signals";
+import { LIMITING_BELIEF_LABELS, PATTERN_LABELS } from "@/lib/signals";
 
 if (!process.env.RESEND_API_KEY) {
   // Don't throw at import time in case the app is starting without email yet
@@ -103,18 +104,113 @@ export function deliveryHtml({
 }
 
 function signalsHtml(s: SignalData): string {
-  return `
+  const visionBlock = s.future_vision.summary
+    ? `
     <tr><td style="padding:24px 0 0;">
-      <div style="font-family:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#5F6264;padding-bottom:14px;">
-        What we listened for
+      ${sectionLabel("What you said is coming")}
+      <div style="font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:500;font-size:19px;line-height:1.45;letter-spacing:-0.005em;color:#1B1B2F;padding-top:10px;">
+        ${escapeHtml(s.future_vision.summary)}
       </div>
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    </td></tr>
+  `
+    : "";
+
+  const beliefsBlock = s.limiting_beliefs.length
+    ? `
+    <tr><td style="padding:28px 0 0;">
+      ${sectionLabel("Beliefs running underneath")}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;padding-top:6px;">
+        ${s.limiting_beliefs
+          .map((b) =>
+            patternRowHtml(
+              LIMITING_BELIEF_LABELS[b.type],
+              b.interpretation,
+              "#1B1B2F"
+            )
+          )
+          .join("")}
+      </table>
+    </td></tr>
+  `
+    : "";
+
+  const unhelpful = s.thinking_patterns.filter((p) => p.pattern_type === "unhelpful");
+  const helpful = s.thinking_patterns.filter((p) => p.pattern_type === "helpful");
+
+  const unhelpfulBlock = unhelpful.length
+    ? `
+    <tr><td style="padding:28px 0 0;">
+      ${sectionLabel("Patterns to notice")}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;padding-top:6px;">
+        ${unhelpful
+          .map((p) => patternRowHtml(PATTERN_LABELS[p.pattern], p.interpretation, "#1B1B2F"))
+          .join("")}
+      </table>
+    </td></tr>
+  `
+    : "";
+
+  // Helpful patterns get their own section with the section label doing the
+  // "this is positive" lift — name color stays Core Dark so readability holds
+  // on white. (Quiet Meadow is too light for body text.)
+  const helpfulBlock = helpful.length
+    ? `
+    <tr><td style="padding:28px 0 0;">
+      ${sectionLabel("What's working")}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;padding-top:6px;">
+        ${helpful
+          .map((p) => patternRowHtml(PATTERN_LABELS[p.pattern], p.interpretation))
+          .join("")}
+      </table>
+    </td></tr>
+  `
+    : "";
+
+  const sentimentBlock = `
+    <tr><td style="padding:28px 0 0;">
+      ${sectionLabel("Where you're at")}
+      <div style="font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:500;font-size:16px;line-height:1.5;color:#1B1B2F;padding-top:10px;">
+        ${escapeHtml(s.sentiment.summary)}
+      </div>
+      <div style="font-family:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;font-size:10px;letter-spacing:0.14em;color:#5F6264;padding-top:6px;">
+        ${s.sentiment.overall_score}/100 · ${escapeHtml(s.sentiment.dominant_emotion)} · trajectory ${escapeHtml(s.sentiment.trajectory)}
+      </div>
+    </td></tr>
+  `;
+
+  return `
+    ${visionBlock}
+    <tr><td style="padding:28px 0 0;">
+      ${sectionLabel("What we listened for")}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;padding-top:6px;">
         ${signalRowHtml("Certainty", s.certainty.summary, `${s.certainty.hedge_count} hedges · ${s.certainty.certainty_count} certainty markers`)}
         ${signalRowHtml("Tempo",     s.tempo.summary,     `${s.tempo.pause_count} pauses · ${s.tempo.speech_rate_wpm} wpm`)}
         ${signalRowHtml("Register",  s.register.summary,  `${Math.round(s.register.avg_hz)} Hz avg · ${s.register.drop_count} drop${s.register.drop_count === 1 ? "" : "s"}, ${s.register.rise_count} rise${s.register.rise_count === 1 ? "" : "s"}`)}
         ${signalRowHtml("Ownership", s.ownership.summary, `${s.ownership.first_person_count} first-person · ${s.ownership.passive_count} passive · ${s.ownership.third_person_count} third-person`)}
       </table>
     </td></tr>
+    ${beliefsBlock}
+    ${unhelpfulBlock}
+    ${helpfulBlock}
+    ${sentimentBlock}
+  `;
+}
+
+function sectionLabel(text: string): string {
+  return `<div style="font-family:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#5F6264;">${escapeHtml(text)}</div>`;
+}
+
+/**
+ * Pattern row used for beliefs + thinking patterns. `nameColor` defaults to
+ * Core Dark; pass Quiet Meadow `#CADAC8` for helpful patterns so the
+ * "what's working" reflection reads visually distinct from unhelpful ones.
+ */
+function patternRowHtml(name: string, interpretation: string, nameColor = "#1B1B2F"): string {
+  return `
+    <tr>
+      <td style="vertical-align:top;padding:12px 16px 12px 0;width:170px;font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:500;font-size:14px;color:${nameColor};letter-spacing:-0.005em;border-top:1px solid #E3E3FF;">${escapeHtml(name)}</td>
+      <td style="vertical-align:top;padding:12px 0;border-top:1px solid #E3E3FF;font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#5F6264;">${escapeHtml(interpretation)}</td>
+    </tr>
   `;
 }
 
@@ -155,6 +251,12 @@ export function deliveryText({
   ];
 
   if (signals) {
+    if (signals.future_vision.summary) {
+      lines.push("What you said is coming:");
+      lines.push(`  ${signals.future_vision.summary}`);
+      lines.push("");
+    }
+
     lines.push("What we listened for:");
     lines.push("");
     lines.push(`  CERTAINTY · ${signals.certainty.summary}`);
@@ -168,6 +270,43 @@ export function deliveryText({
     lines.push("");
     lines.push(`  OWNERSHIP · ${signals.ownership.summary}`);
     lines.push(`    ${signals.ownership.first_person_count} first-person · ${signals.ownership.passive_count} passive · ${signals.ownership.third_person_count} third-person`);
+    lines.push("");
+
+    if (signals.limiting_beliefs.length) {
+      lines.push("Beliefs running underneath:");
+      lines.push("");
+      for (const b of signals.limiting_beliefs) {
+        lines.push(`  ${LIMITING_BELIEF_LABELS[b.type].toUpperCase()}`);
+        lines.push(`    ${b.interpretation}`);
+        lines.push("");
+      }
+    }
+
+    const unhelpful = signals.thinking_patterns.filter((p) => p.pattern_type === "unhelpful");
+    if (unhelpful.length) {
+      lines.push("Patterns to notice:");
+      lines.push("");
+      for (const p of unhelpful) {
+        lines.push(`  ${PATTERN_LABELS[p.pattern].toUpperCase()}`);
+        lines.push(`    ${p.interpretation}`);
+        lines.push("");
+      }
+    }
+
+    const helpful = signals.thinking_patterns.filter((p) => p.pattern_type === "helpful");
+    if (helpful.length) {
+      lines.push("What's working:");
+      lines.push("");
+      for (const p of helpful) {
+        lines.push(`  ${PATTERN_LABELS[p.pattern].toUpperCase()}`);
+        lines.push(`    ${p.interpretation}`);
+        lines.push("");
+      }
+    }
+
+    lines.push("Where you're at:");
+    lines.push(`  ${signals.sentiment.summary}`);
+    lines.push(`  (${signals.sentiment.overall_score}/100 · ${signals.sentiment.dominant_emotion} · trajectory ${signals.sentiment.trajectory})`);
     lines.push("");
   }
 

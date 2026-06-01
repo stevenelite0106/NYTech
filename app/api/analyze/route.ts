@@ -97,8 +97,16 @@ export async function POST(req: Request) {
         const tempoSignal = computeTempo(transcript.words, transcript.duration);
         const registerSignal = buildRegisterSignal(register);
 
-        // ── GPT text analysis (certainty + ownership in one call) ─────────
-        const { certainty, ownership } = await analyzeText(transcript.text);
+        // ── GPT text analysis: all seven extracted layers in one call ────
+        const {
+          certainty,
+          ownership,
+          future_vision,
+          limiting_beliefs,
+          thinking_patterns,
+          sentiment,
+          emerging_patterns,
+        } = await analyzeText(transcript.text);
 
         // ── Reveal in visual order with small pacing delays ──────────────
         emit({ type: "stage_done", id: "certainty", data: certainty });
@@ -118,6 +126,11 @@ export async function POST(req: Request) {
           tempo: tempoSignal,
           register: registerSignal,
           ownership,
+          future_vision,
+          limiting_beliefs,
+          thinking_patterns,
+          sentiment,
+          emerging_patterns,
         };
 
         const recordedAt = new Date();

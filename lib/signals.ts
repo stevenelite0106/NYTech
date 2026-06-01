@@ -1,17 +1,27 @@
 /**
- * Canonical types and lightweight helpers for Space of Mind's four
- * measurement signals. The brand's voice principles ("loving, direct, no BS"
- * and "avoid clinical jargon in consumer contexts") drive the human-facing
- * `summary` strings — they translate raw numbers into a sentence the
- * attendee can actually carry away from the booth.
+ * Canonical types and lightweight helpers for Space of Mind's measurement
+ * framework. Two interlocking layers:
  *
- * Split by computation type:
- *   - certainty + ownership  → require an LLM pass over the transcript
- *   - tempo                  → pure code from Whisper word timestamps
- *   - register               → pure code from client-captured pitch samples
+ *   1. VOCAL SIGNALS — how someone spoke (certainty, tempo, register,
+ *      ownership). Derived from Whisper word timestamps + client-side pitch.
+ *
+ *   2. THOUGHT MODEL — what they said. Derived from the transcript via GPT:
+ *      - future_vision        — their stated win, anchored on a verbatim quote
+ *      - limiting_beliefs     — up to 3 belief clusters from a fixed 20-item taxonomy
+ *      - thinking_patterns    — up to 5 patterns (mix of unhelpful + helpful)
+ *      - sentiment            — multi-dimensional emotional read-out
+ *
+ * Brand voice principles ("loving, direct, no BS" + "patterns, not problems"
+ * + "no clinical jargon in consumer contexts") drive every human-facing
+ * `summary` / `interpretation` field. Clinical taxonomy slugs are kept
+ * internally; user-facing labels live in the `_LABELS` maps below.
  */
 
 import type { RegisterData } from "@/lib/pitch";
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Vocal signals
+   ───────────────────────────────────────────────────────────────────────── */
 
 export type WordTimestamp = {
   word: string;
@@ -22,24 +32,17 @@ export type WordTimestamp = {
 export type CertaintySignal = {
   hedge_count: number;
   certainty_count: number;
-  /** hedge / (hedge + certainty), 0..1 */
   hedge_ratio: number;
-  /** Up to three short phrases pulled from the transcript */
   examples: { hedge: string[]; certainty: string[] };
+  verbatim_quote?: string;
   summary: string;
 };
 
 export type TempoSignal = {
-  /** Gaps between word.end and next word.start that exceed PAUSE_THRESHOLD_MS */
   pause_count: number;
   longest_pause_ms: number;
   avg_pause_ms: number;
   speech_rate_wpm: number;
-  /**
-   * The short verbatim fragment (up to 4 words) immediately preceding the
-   * longest pause. This is what the speaker stopped on — the place where
-   * the resistance lives. Empty string if there were no qualifying pauses.
-   */
   verbatim_quote: string;
   summary: string;
 };
@@ -58,30 +61,336 @@ export type OwnershipSignal = {
   first_person_count: number;
   passive_count: number;
   third_person_count: number;
-  /** first_person / (first_person + passive + third_person), 0..1 */
   agency_ratio: number;
   examples: { first_person: string[]; passive: string[]; third_person: string[] };
+  verbatim_quote?: string;
   summary: string;
 };
+
+export type FutureVision = {
+  summary: string;
+  verbatim_quote: string;
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Limiting beliefs (20-item taxonomy)
+   ───────────────────────────────────────────────────────────────────────── */
+
+export type LimitingBeliefType =
+  | "impostor-syndrome"
+  | "perfectionism"
+  | "social-anxiety"
+  | "fear-of-failure"
+  | "low-self-worth"
+  | "excessive-responsibility"
+  | "abandonment-anxiety"
+  | "control-issues"
+  | "approval-seeking"
+  | "pessimistic-outlook"
+  | "decision-paralysis"
+  | "self-sacrifice"
+  | "entitlement"
+  | "victimhood-mentality"
+  | "catastrophic-health-anxiety"
+  | "fixed-mindset"
+  | "emotional-avoidance"
+  | "future-anxiety"
+  | "rumination"
+  | "hyper-independence";
+
+export const LIMITING_BELIEF_TYPES: LimitingBeliefType[] = [
+  "impostor-syndrome",
+  "perfectionism",
+  "social-anxiety",
+  "fear-of-failure",
+  "low-self-worth",
+  "excessive-responsibility",
+  "abandonment-anxiety",
+  "control-issues",
+  "approval-seeking",
+  "pessimistic-outlook",
+  "decision-paralysis",
+  "self-sacrifice",
+  "entitlement",
+  "victimhood-mentality",
+  "catastrophic-health-anxiety",
+  "fixed-mindset",
+  "emotional-avoidance",
+  "future-anxiety",
+  "rumination",
+  "hyper-independence",
+];
+
+/** User-facing label for each belief cluster. Plain English, brand-voice. */
+export const LIMITING_BELIEF_LABELS: Record<LimitingBeliefType, string> = {
+  "impostor-syndrome": "Impostor",
+  perfectionism: "Perfectionism",
+  "social-anxiety": "Fear of judgment",
+  "fear-of-failure": "Fear of failure",
+  "low-self-worth": "Not enough",
+  "excessive-responsibility": "Carrying everyone",
+  "abandonment-anxiety": "They'll leave",
+  "control-issues": "Must control it all",
+  "approval-seeking": "Need them to approve",
+  "pessimistic-outlook": "It'll go wrong",
+  "decision-paralysis": "Can't decide",
+  "self-sacrifice": "My needs last",
+  entitlement: "Deserve more",
+  "victimhood-mentality": "It's happening to me",
+  "catastrophic-health-anxiety": "Body's against me",
+  "fixed-mindset": "Can't change",
+  "emotional-avoidance": "Don't feel that",
+  "future-anxiety": "The future is danger",
+  rumination: "Can't stop thinking",
+  "hyper-independence": "Need no one",
+};
+
+export const LIMITING_BELIEF_CORE: Record<LimitingBeliefType, string> = {
+  "impostor-syndrome": "I've fooled others into thinking I'm competent, but I'm not",
+  perfectionism: "Anything less than perfect is failure",
+  "social-anxiety": "Others will judge me negatively or reject me",
+  "fear-of-failure": "Failure would be catastrophic and prove my inadequacy",
+  "low-self-worth": "I am fundamentally inadequate or unworthy",
+  "excessive-responsibility": "Others' needs are my responsibility",
+  "abandonment-anxiety": "People I care about will inevitably leave me",
+  "control-issues": "I must control situations to prevent disaster",
+  "approval-seeking": "My worth depends on others' approval",
+  "pessimistic-outlook": "Things generally turn out badly",
+  "decision-paralysis": "Making the wrong choice would be disastrous",
+  "self-sacrifice": "My needs are less important than others'",
+  entitlement: "I deserve special treatment",
+  "victimhood-mentality": "My problems are caused by others or forces beyond my control",
+  "catastrophic-health-anxiety": "My body is vulnerable; every sensation might mean danger",
+  "fixed-mindset": "My abilities are fixed and cannot be significantly improved",
+  "emotional-avoidance": "Certain emotions are dangerous or intolerable",
+  "future-anxiety": "The future holds danger or failure",
+  rumination: "I need to analyze problems extensively to solve them",
+  "hyper-independence": "Relying on others is weak or dangerous",
+};
+
+export type LimitingBelief = {
+  type: LimitingBeliefType;
+  /** 1–10, GPT-rated presence/strength */
+  strength: number;
+  /** 1–10, GPT confidence in detection */
+  confidence: number;
+  /** Verbatim phrase from transcript that triggered detection */
+  verbatim_quote: string;
+  /** ONE sentence, brand-voice. Quotes verbatim_quote inline. */
+  interpretation: string;
+  /** Pattern slugs that frequently co-activate with this belief */
+  associated_patterns: ThinkingPatternType[];
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Thinking patterns (unhelpful + helpful)
+   ───────────────────────────────────────────────────────────────────────── */
+
+export type UnhelpfulPatternType =
+  | "all-or-nothing"
+  | "overgeneralization"
+  | "mental-filter"
+  | "disqualifying-positive"
+  | "mind-reading"
+  | "fortune-telling"
+  | "magnification-minimization"
+  | "emotional-reasoning"
+  | "should-statements"
+  | "labeling"
+  | "personalization-blame"
+  | "catastrophizing"
+  | "comparing-and-despairing";
+
+export type HelpfulPatternType =
+  | "reframing"
+  | "evidence-based"
+  | "balanced-thinking"
+  | "self-compassion"
+  | "growth-mindset"
+  | "specific-temporary-attribution"
+  | "acceptance"
+  | "gratitude"
+  | "perspective-taking"
+  | "value-aligned";
+
+export type ThinkingPatternType = UnhelpfulPatternType | HelpfulPatternType;
+
+export const UNHELPFUL_PATTERN_TYPES: UnhelpfulPatternType[] = [
+  "all-or-nothing",
+  "overgeneralization",
+  "mental-filter",
+  "disqualifying-positive",
+  "mind-reading",
+  "fortune-telling",
+  "magnification-minimization",
+  "emotional-reasoning",
+  "should-statements",
+  "labeling",
+  "personalization-blame",
+  "catastrophizing",
+  "comparing-and-despairing",
+];
+
+export const HELPFUL_PATTERN_TYPES: HelpfulPatternType[] = [
+  "reframing",
+  "evidence-based",
+  "balanced-thinking",
+  "self-compassion",
+  "growth-mindset",
+  "specific-temporary-attribution",
+  "acceptance",
+  "gratitude",
+  "perspective-taking",
+  "value-aligned",
+];
+
+export const THINKING_PATTERN_TYPES: ThinkingPatternType[] = [
+  ...UNHELPFUL_PATTERN_TYPES,
+  ...HELPFUL_PATTERN_TYPES,
+];
+
+export const PATTERN_LABELS: Record<ThinkingPatternType, string> = {
+  // Unhelpful — plain-English, not clinical
+  "all-or-nothing": "All-or-nothing thinking",
+  overgeneralization: "Overgeneralizing one event",
+  "mental-filter": "Filtering out the good",
+  "disqualifying-positive": "Disqualifying the wins",
+  "mind-reading": "Assuming what others think",
+  "fortune-telling": "Predicting the future",
+  "magnification-minimization": "Magnifying the bad, shrinking the good",
+  "emotional-reasoning": "Feelings as facts",
+  "should-statements": "Should-thinking",
+  labeling: "Sticking a label on yourself",
+  "personalization-blame": "Taking it personally",
+  catastrophizing: "Worst-case thinking",
+  "comparing-and-despairing": "Comparing and despairing",
+  // Helpful
+  reframing: "Reframing the situation",
+  "evidence-based": "Evidence over assumption",
+  "balanced-thinking": "Holding both sides",
+  "self-compassion": "Self-compassion",
+  "growth-mindset": "Growth mindset",
+  "specific-temporary-attribution": "Specific and temporary",
+  acceptance: "Acceptance",
+  gratitude: "Gratitude",
+  "perspective-taking": "Perspective-taking",
+  "value-aligned": "Value-aligned choice",
+};
+
+export type ThinkingPattern = {
+  pattern: ThinkingPatternType;
+  pattern_type: "unhelpful" | "helpful";
+  /** 1–10 */
+  strength: number;
+  /** Verbatim phrases from transcript that triggered detection (≤3) */
+  examples: string[];
+  /** ONE sentence, brand-voice. Quotes one of the examples inline. */
+  interpretation: string;
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Sentiment analysis
+   ───────────────────────────────────────────────────────────────────────── */
+
+export type SentimentCategory =
+  | "very_negative"
+  | "negative"
+  | "somewhat_negative"
+  | "neutral"
+  | "somewhat_positive"
+  | "positive"
+  | "very_positive";
+
+export type SentimentAnalysis = {
+  /** 0–100, higher = more positive */
+  overall_score: number;
+  category: SentimentCategory;
+  dominant_emotion: string;
+  /** Domain-specific scores, 0–100 (null if not discussed) */
+  domains: {
+    self: number | null;
+    relationships: number | null;
+    work: number | null;
+    future: number | null;
+  };
+  positive_emotions: string[];
+  negative_emotions: string[];
+  trajectory: "improving" | "stable" | "declining";
+  /** 1–10, GPT confidence */
+  confidence: number;
+  /** ONE brand-voice sentence translating the score into an insight */
+  summary: string;
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Emerging patterns (forward-looking)
+   ───────────────────────────────────────────────────────────────────────── */
+
+export type EmergingPattern = {
+  pattern: string;
+  /** 1–10 */
+  significance: number;
+  /** ONE brand-voice sentence — what to do about it */
+  recommendation: string;
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Top-level SignalData
+   ───────────────────────────────────────────────────────────────────────── */
 
 export type SignalData = {
   transcript: string;
   duration_seconds: number;
   word_count: number;
+
+  // Vocal layer (how they spoke)
   certainty: CertaintySignal;
   tempo: TempoSignal;
   register: RegisterSignal;
   ownership: OwnershipSignal;
+
+  // Thought layer (what they said)
+  future_vision: FutureVision;
+  limiting_beliefs: LimitingBelief[];
+  thinking_patterns: ThinkingPattern[];
+  sentiment: SentimentAnalysis;
+  emerging_patterns: EmergingPattern[];
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Derived helpers (deterministic, no LLM)
+   ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Convert a 1–10 strength score to the spec's activation_frequency_percentage
+ * (0–100). Stored alongside strength for analytics; never surfaced in copy.
+ */
+export function activationPercent(strength: number): number {
+  return Math.max(0, Math.min(100, Math.round((strength / 10) * 100)));
+}
+
+/** Spec-defined activation label tier from strength. Internal use. */
+export function activationLabel(strength: number): string {
+  const pct = activationPercent(strength);
+  if (pct >= 81) return "Highly Active — dominant pattern";
+  if (pct >= 61) return "Frequently Active — recurring pattern";
+  if (pct >= 41) return "Moderately Active — situational pattern";
+  if (pct >= 21) return "Low Activation — pattern interrupting";
+  return "Minimal Activation — pattern largely resolved";
+}
+
+/** Spec-defined clinical-threshold status from strength. Internal use. */
+export function clinicalThresholdStatus(strength: number): string {
+  const pct = activationPercent(strength);
+  if (pct > 60) return "Activation above threshold — pattern operating at automatic response level";
+  if (pct >= 41) return "Activation approaching threshold — pattern interrupt in progress";
+  if (pct > 20) return "Activation below threshold — pattern interrupt at automatic response level";
+  return "Activation below threshold — pattern interrupt consolidated";
+}
 
 const PAUSE_THRESHOLD_MS = 500;
 const FRAGMENT_WORD_COUNT = 4;
 
-/**
- * Compute tempo signal from Whisper word-level timestamps. Pure code, no LLM.
- * The verbatim quote is the short fragment immediately preceding the longest
- * pause — the spot where the speaker stopped before saying the next thing.
- */
 export function computeTempo(
   words: WordTimestamp[],
   durationSeconds: number
@@ -105,7 +414,6 @@ export function computeTempo(
   const avg = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0;
   const wpm = durationSeconds > 0 ? (words.length / durationSeconds) * 60 : 0;
 
-  // Pull the fragment that came right before the longest pause.
   let verbatim = "";
   if (longestPauseIdx > 0) {
     const startIdx = Math.max(0, longestPauseIdx - FRAGMENT_WORD_COUNT);
@@ -134,7 +442,6 @@ function tempoSummary(
   wpm: number,
   fragment: string
 ): string {
-  // No qualifying pauses — talk about pace instead.
   if (pauses === 0) {
     if (wpm > 170) {
       return "You moved through it fast and never stopped. The rush is the pattern.";
@@ -148,7 +455,6 @@ function tempoSummary(
   const seconds = (longestMs / 1000).toFixed(1);
   const quoted = fragment ? `“${fragment}”` : "";
 
-  // We have at least one pause AND a verbatim fragment — the strong case.
   if (fragment) {
     if (pauses === 1 && longestMs > 1500) {
       return `You held ${seconds}s after ${quoted}. That's the moment that mattered.`;
@@ -162,14 +468,9 @@ function tempoSummary(
     return `Longest pause: ${seconds}s after ${quoted}. Notice what you said next.`;
   }
 
-  // Fallback — pauses present but no fragment recoverable.
   return `${pauses} pause${pauses === 1 ? "" : "s"}, longest ${seconds}s. Listen for what came right after.`;
 }
 
-/**
- * Convert pure pitch numbers from the client into the human-facing register
- * signal. Brand-voice summary derived from the drop/rise ratio.
- */
 export function buildRegisterSignal(data: RegisterData): RegisterSignal {
   return {
     avg_hz: Math.round(data.avg_hz),
@@ -194,3 +495,42 @@ function registerSummary(drops: number, rises: number): string {
   }
   return `${drops} drops, ${rises} rises. The variance is the signal.`;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Backwards-compat: legacy slugs from earlier 12-item distortion model
+   ─────────────────────────────────────────────────────────────────────────
+   The previous schema used these aliases. Keep them exported as deprecated
+   aliases so any existing rows in `signal_data` JSONB written before this
+   refactor still resolve to a usable label if read back.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** @deprecated use UnhelpfulPatternType / HelpfulPatternType */
+export type DistortionType =
+  | "all-or-nothing"
+  | "catastrophizing"
+  | "mind-reading"
+  | "fortune-telling"
+  | "emotional-reasoning"
+  | "labeling"
+  | "mental-filter"
+  | "disqualifying-positive"
+  | "personalization"
+  | "should-statements"
+  | "magnification"
+  | "minimization";
+
+/** @deprecated use PATTERN_LABELS */
+export const DISTORTION_LABELS: Record<DistortionType, string> = {
+  "all-or-nothing": "All-or-nothing thinking",
+  catastrophizing: "Worst-case thinking",
+  "mind-reading": "Assuming what others think",
+  "fortune-telling": "Predicting the future",
+  "emotional-reasoning": "Feelings as facts",
+  labeling: "Sticking a label on yourself",
+  "mental-filter": "Filtering out the good",
+  "disqualifying-positive": "Disqualifying the wins",
+  personalization: "Taking it personally",
+  "should-statements": "Should-thinking",
+  magnification: "Magnifying the bad",
+  minimization: "Shrinking the good",
+};

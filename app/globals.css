@@ -641,6 +641,166 @@ input, textarea { font: inherit; color: inherit; }
 /* ----------------------------------------------------------------------------
    Confirmation screen
 ---------------------------------------------------------------------------- */
+/* Future-vision block sits ABOVE the four-signal readout — it's the
+   speaker's own stated win, not a measurement. Treated as a distinct hero
+   line so it doesn't compete with the signal grid for attention. */
+.future-vision {
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto 28px;
+  text-align: left;
+}
+
+.future-vision .signal-label {
+  display: block;
+  padding-top: 0;
+  padding-bottom: 10px;
+}
+
+.future-vision-body {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--core-dark);
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+
+/* "Belief running underneath" — sits between the four signals and the
+   patterns list. One block, the strongest detected belief cluster only. */
+.belief-block {
+  width: 100%;
+  max-width: 580px;
+  margin: 28px auto 0;
+  text-align: left;
+}
+
+.belief-block .signal-label {
+  display: block;
+  padding-top: 0;
+  padding-bottom: 14px;
+}
+
+.belief-row {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  column-gap: 20px;
+  align-items: start;
+}
+
+.belief-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--core-dark);
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+
+.belief-body {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
+
+/* One-line sentiment summary, anchors the bottom of the readout. */
+.sentiment-line {
+  width: 100%;
+  max-width: 580px;
+  margin: 28px auto 0;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  column-gap: 20px;
+  align-items: start;
+}
+
+.sentiment-line .signal-label {
+  padding-top: 4px;
+}
+
+.sentiment-body {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--core-dark);
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+}
+
+/* Patterns-to-notice block sits BELOW the four-signal readout — same
+   visual rhythm as signal rows but with a softer body weight, since these
+   are reflections rather than measurements. */
+.patterns-block {
+  width: 100%;
+  max-width: 580px;
+  margin: 28px auto 0;
+  text-align: left;
+}
+
+.patterns-block .signal-label {
+  display: block;
+  padding-top: 0;
+  padding-bottom: 14px;
+}
+
+.patterns-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.pattern-row {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  column-gap: 20px;
+  padding: 14px 0;
+  border-top: 1px solid var(--rule);
+  align-items: start;
+}
+
+.pattern-row:first-child { border-top: none; }
+
+/* Helpful pattern reads visually distinct from unhelpful — Quiet Meadow
+   accent in the name keeps the brand's positive-grounding color tied
+   to the "what's working" reflection. */
+.pattern-row.helpful .pattern-name {
+  color: var(--core-dark);
+  position: relative;
+  padding-left: 14px;
+}
+
+.pattern-row.helpful .pattern-name::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--quiet-meadow);
+}
+
+.pattern-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--core-dark);
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+
+.pattern-body {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
+
 .signal-readout {
   list-style: none;
   display: flex;
