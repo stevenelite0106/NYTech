@@ -7,6 +7,13 @@
  *   Q3 → ownership, commitment                    (where it has to land)
  *   Q4 → sentiment, regret, cost-of-inaction      (what staying costs)
  *   Q5 → limiting_beliefs (explicit)              (what they'd shed)
+ *
+ * Local-dev override:
+ *   Set `NEXT_PUBLIC_BOOTH_QUESTION_COUNT=1` (or 2, 3, etc.) in `.env.local`
+ *   to truncate the question list during local testing — useful for
+ *   iterating without sitting through the full 4–5 min flow each cycle.
+ *   The var is `NEXT_PUBLIC_` so it's inlined at build time; production
+ *   deployments that don't set it ship the full five questions.
  */
 export type BoothQuestion = {
   /** 1-indexed for display ("Question 3 of 5") */
@@ -17,7 +24,7 @@ export type BoothQuestion = {
   text: string;
 };
 
-export const QUESTIONS: BoothQuestion[] = [
+const ALL_QUESTIONS: BoothQuestion[] = [
   {
     index: 1,
     label: "Celebrating",
@@ -47,6 +54,19 @@ export const QUESTIONS: BoothQuestion[] = [
       "What would you have to stop believing about yourself for the next version to be possible?",
   },
 ];
+
+function activeQuestionCount(): number {
+  const raw = process.env.NEXT_PUBLIC_BOOTH_QUESTION_COUNT;
+  if (!raw) return ALL_QUESTIONS.length;
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return ALL_QUESTIONS.length;
+  return Math.min(parsed, ALL_QUESTIONS.length);
+}
+
+export const QUESTIONS: BoothQuestion[] = ALL_QUESTIONS.slice(
+  0,
+  activeQuestionCount()
+);
 
 export const TOTAL_QUESTIONS = QUESTIONS.length;
 

@@ -67,6 +67,13 @@ OPENAI_API_KEY=sk-...   # Whisper (transcription) + GPT-4o-mini (signal extracti
 # Research / non-commercial use only. See brain-service/README.md.
 BRAIN_SERVICE_URL=https://your-brain-service.up.railway.app
 BRAIN_SERVICE_TOKEN=...same-value-as-SERVICE_AUTH_TOKEN-on-railway...
+
+# Local-only dev shortcut. Set to 1–4 to truncate the question list
+# while testing (saves the 4–6 min booth flow per cycle). DO NOT set
+# this in Vercel production — Vercel deployments without the var get
+# the full five questions. NEXT_PUBLIC_ means it's baked at build
+# time into the client bundle.
+NEXT_PUBLIC_BOOTH_QUESTION_COUNT=1
 ```
 
 ## Cost note
