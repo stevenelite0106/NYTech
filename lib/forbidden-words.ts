@@ -98,13 +98,20 @@ function auditSynthesis(syn: Synthesis): ForbiddenWordHit[] {
 
 function scan(source: string, text: string): ForbiddenWordHit[] {
   if (!text) return [];
-  const lower = text.toLowerCase();
   const out: ForbiddenWordHit[] = [];
   for (const word of FORBIDDEN) {
-    const idx = lower.indexOf(word.toLowerCase());
-    if (idx < 0) continue;
+    // Short all-caps acronyms (ADD, OCD, ADHD, PTSD, C-PTSD) are matched
+    // case-sensitively so we don't false-positive on common English ("add",
+    // "address"). Everything else is case-insensitive.
+    const caseSensitive = /^[A-Z]{2,5}$/.test(word) || /^[A-Z]-[A-Z]{2,5}$/.test(word);
+    const flags = caseSensitive ? "" : "i";
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${escaped}\\b`, flags);
+    const match = re.exec(text);
+    if (!match) continue;
+    const idx = match.index;
     const start = Math.max(0, idx - 30);
-    const end = Math.min(text.length, idx + word.length + 30);
+    const end = Math.min(text.length, idx + match[0].length + 30);
     out.push({
       source,
       match: word,
