@@ -122,6 +122,15 @@ export async function POST(req: Request) {
         });
         emit({ type: "stage_done", id: "receive" });
 
+        // ── TRIBE brain render in parallel with Whisper (not after) ────────
+        // renderBrain only needs take blobs — no transcript. Starting here
+        // overlaps GPU queue/work with Whisper so we stay inside Vercel's
+        // 300s cap more often on cold RunPod workers.
+        const brainPromise = renderBrain(takes.map((t) => ({ audio: t.audio }))).catch((err) => {
+          console.warn("brain render failed:", err instanceof Error ? err.message : err);
+          return null as BrainMap | null;
+        });
+
         // ── Whisper transcription of the full concatenated audio ─────────
         const transcript = await transcribe(concatenated);
 
@@ -139,16 +148,8 @@ export async function POST(req: Request) {
         // per-take summaries weighted by sample count. Phase 2 can revisit.
         const registerSignal = buildRegisterSignal(mergeRegister(takes.map((t) => t.register)));
 
-        // ── GPT extraction + TRIBE brain render in parallel ──────────────
-        // Pass ALL takes — the brain-service ffmpeg-concats them server-side
-        // so TRIBE inference covers the full recording. This is what powers
-        // the Confirmation-screen BrainCanvas syncing with every take, not
-        // just the longest one.
+        // ── GPT extraction (brain still running from above) ──────────────
         const extractionPromise = analyzeText(taggedTranscript);
-        const brainPromise = renderBrain(takes.map((t) => ({ audio: t.audio }))).catch((err) => {
-          console.warn("brain render failed:", err instanceof Error ? err.message : err);
-          return null as BrainMap | null;
-        });
 
         const extraction = await extractionPromise;
 
@@ -174,7 +175,7 @@ export async function POST(req: Request) {
         await sleep(STAGE_REVEAL_DELAY_MS);
         emit({ type: "stage_done", id: "ownership", data: extraction.ownership });
 
-        // ── Wait on brain (still running in parallel) ────────────────────
+        // ── Wait on brain (overlapped Whisper + extraction) ────────────
         const brain_map: BrainMap | null = await brainPromise;
         emit({ type: "stage_done", id: "brain", data: brain_map });
 
