@@ -439,11 +439,13 @@ const FRAGMENT_SHADER = /* glsl */ `
     // = darker), so the recognizable brain texture stays visible.
     vec3 base = vec3(0.847, 0.863, 0.871);
     float sulcFactor = clamp(0.7 - vSulc * uSulcStrength, 0.5, 1.0);
-    vec3 inactive = base * sulcFactor;
+    // NOTE: avoid the names 'active' / 'inactive' — both are reserved in
+    // GLSL ES 3.00, which three.js auto-transpiles to under WebGL2.
+    vec3 baseTint = base * sulcFactor;
 
-    vec3 active = brandColormap(vActivation);
+    vec3 activationTint = brandColormap(vActivation);
     float strength = abs(vActivation);
-    vec3 color = mix(inactive, active, smoothstep(uThreshold, uThreshold + 0.1, strength));
+    vec3 color = mix(baseTint, activationTint, smoothstep(uThreshold, uThreshold + 0.1, strength));
 
     // Cheap directional shading — front-lit, no PBR. Just enough for the
     // surface to feel three-dimensional.
