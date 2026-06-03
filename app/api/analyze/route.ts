@@ -126,6 +126,7 @@ export async function POST(req: Request) {
         // renderBrain only needs take blobs — no transcript. Starting here
         // overlaps GPU queue/work with Whisper so we stay inside Vercel's
         // 300s cap more often on cold RunPod workers.
+        console.log("[analyze] brain render started (parallel with Whisper)");
         const brainPromise = renderBrain(takes.map((t) => ({ audio: t.audio }))).catch((err) => {
           console.warn("brain render failed:", err instanceof Error ? err.message : err);
           return null as BrainMap | null;
