@@ -47,23 +47,23 @@ export async function GET(req: Request) {
 
       const validUntil = Date.now() + LISTEN_WINDOW_DAYS * 86400_000;
 
-      const token = await issueSignedToken({
-        pathname: row.audio_pathname,
-        operations: ["get"],
-        validUntil,
-      });
+      const presignedUrl = await mintSignedGet(row.audio_pathname, validUntil);
 
-      const { presignedUrl } = await presignUrl(
-        {
-          clientSigningToken: token.clientSigningToken,
-          delegationToken: token.delegationToken,
-        },
-        {
-          operation: "get",
-          pathname: row.audio_pathname,
-          access: "private",
-        }
-      );
+      // Re-sign brain assets at send time. URLs minted during /api/analyze
+      // only live 24h (Confirmation scope); the listen window needs fresh
+      // signatures. Two assets: the peak-frame PNG (shown in email) and
+      // the activation tensor binary (if present; email doesn't currently
+      // render the cortex viewer, but re-signing keeps the data live for
+      // a future deep-link / replay flow).
+      const signals = row.signal_data;
+      const brainPathname = signals?.brain_map?.image_pathname;
+      if (brainPathname) {
+        signals.brain_map!.image_url = await mintSignedGet(brainPathname, validUntil);
+      }
+      const activationsPathname = signals?.brain_map?.activations_pathname;
+      if (activationsPathname) {
+        signals.brain_map!.activations_url = await mintSignedGet(activationsPathname, validUntil);
+      }
 
       const html = deliveryHtml({
         to: row.email,
@@ -72,7 +72,7 @@ export async function GET(req: Request) {
         audioUrl: presignedUrl,
         recordedAt: new Date(row.recorded_at),
         eventName: row.event_name,
-        signals: row.signal_data,
+        signals,
       });
       const text = deliveryText({
         to: row.email,
@@ -81,7 +81,7 @@ export async function GET(req: Request) {
         audioUrl: presignedUrl,
         recordedAt: new Date(row.recorded_at),
         eventName: row.event_name,
-        signals: row.signal_data,
+        signals,
       });
 
       const send = await resend.emails.send({
@@ -144,4 +144,28 @@ export async function GET(req: Request) {
     sent,
     deleted,
   });
+}
+
+/**
+ * Mint a Vercel Blob signed GET URL valid until `validUntil` (epoch ms).
+ * Used for audio, brain images, and activation tensors at email-send time.
+ */
+async function mintSignedGet(pathname: string, validUntil: number): Promise<string> {
+  const token = await issueSignedToken({
+    pathname,
+    operations: ["get"],
+    validUntil,
+  });
+  const { presignedUrl } = await presignUrl(
+    {
+      clientSigningToken: token.clientSigningToken,
+      delegationToken: token.delegationToken,
+    },
+    {
+      operation: "get",
+      pathname,
+      access: "private",
+    }
+  );
+  return presignedUrl;
 }

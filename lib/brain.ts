@@ -1,5 +1,10 @@
-import { put } from "@vercel/blob";
+import { put, issueSignedToken, presignUrl } from "@vercel/blob";
 import type { BrainMap, CorticalRegion } from "@/lib/signals";
+
+/** Confirmation-screen signed URL validity. 24 hours covers the booth
+ *  experience + any operator debugging the same day. The cron mints a
+ *  fresh URL when sending the 10-day-later email. */
+const CONFIRMATION_URL_VALID_HOURS = 24;
 
 /**
  * Call the RunPod Serverless brain-service endpoint to render a brand-styled
@@ -73,6 +78,17 @@ export async function renderBrain(audio: Blob): Promise<BrainMap | null> {
     dominant_yeo_network: string | null;
     transcript_text: string;
     peak_timestep: number;
+    // Phase: brain video. Optional so an older handler.py revision (or a
+    // future packing-disabled path) still works — we just won't have a
+    // playable cortex in that case.
+    activations_b64?: string;
+    activations_dtype?: string;
+    activations_layout?: string;
+    frame_count?: number;
+    vertex_count?: number;
+    frame_times?: number[];
+    peak_timestep_packed?: number;
+    audio_duration_seconds?: number;
     error?: string;
   };
   type RunpodResponse = {
@@ -126,28 +142,82 @@ export async function renderBrain(audio: Blob): Promise<BrainMap | null> {
     throw new Error("runpod returned no brain_image_base64");
   }
 
-  // Persist PNG to Vercel Blob as a PUBLIC image — both the Confirmation
-  // screen (browser <img>) and the delivery email need to load this
-  // directly without auth headers. Privacy is upheld by the random suffix
-  // in the key; URLs aren't enumerable. The brand-styled visualization
-  // itself contains no PII (it's a colored cortex with region labels).
+  // Persist PNG to Vercel Blob. Our store is configured as Private Read
+  // so per-blob public access isn't allowed — we generate a signed URL
+  // instead. Confirmation screen uses a short-lived URL; the cron will
+  // re-sign from `image_pathname` at email-send time.
   const png = Buffer.from(data.brain_image_base64, "base64");
   const key = `brain-maps/${Date.now()}-${cryptoRandom(12)}.png`;
   const blob = await put(key, png, {
-    access: "public",
+    access: "private",
     contentType: "image/png",
     addRandomSuffix: false,
   });
 
+  const validUntil = Date.now() + CONFIRMATION_URL_VALID_HOURS * 3600_000;
+  const imageSignedUrl = await mintSignedGetUrl(blob.pathname, validUntil);
+
+  // Phase 2: upload the per-frame activation tensor if the handler sent it.
+  // Falls back to an empty/null shape if the handler returned only the PNG
+  // (older handler.py revision) so the Confirmation screen still renders
+  // — it just won't have a playable cortex video.
+  let activationsUrl: string | null = null;
+  let activationsPathname: string | null = null;
+  if (data.activations_b64 && data.frame_count && data.vertex_count) {
+    const activationsBuf = Buffer.from(data.activations_b64, "base64");
+    const activationsKey = `brain-maps/${Date.now()}-${cryptoRandom(12)}.f16`;
+    const activationsBlob = await put(activationsKey, activationsBuf, {
+      access: "private",
+      // Custom mime so a curious operator opening the URL sees what it is.
+      contentType: "application/octet-stream",
+      addRandomSuffix: false,
+    });
+    activationsUrl = await mintSignedGetUrl(activationsBlob.pathname, validUntil);
+    activationsPathname = activationsBlob.pathname;
+  }
+
   return {
-    image_url: blob.url,
+    image_url: imageSignedUrl,
+    image_pathname: blob.pathname,
     // Phase 1 ships the peak-frame PNG only. Phase 2 will populate this
     // with a Vercel Blob URL to a synced TRIBE → ffmpeg MP4.
     video_url: null,
     top_regions: data.top_regions,
     dominant_yeo_network: data.dominant_yeo_network,
     peak_timestep: data.peak_timestep,
+    activations_url: activationsUrl,
+    activations_pathname: activationsPathname,
+    frame_count: data.frame_count ?? 0,
+    vertex_count: data.vertex_count ?? 0,
+    frame_times: data.frame_times ?? [],
+    peak_timestep_packed: data.peak_timestep_packed ?? 0,
+    audio_duration_seconds: data.audio_duration_seconds ?? 0,
   };
+}
+
+/**
+ * Mint a Vercel Blob signed GET URL valid until `validUntil` (epoch ms).
+ * Wrapper around issueSignedToken + presignUrl since we now do this twice
+ * per render (image + activations binary).
+ */
+async function mintSignedGetUrl(pathname: string, validUntil: number): Promise<string> {
+  const token = await issueSignedToken({
+    pathname,
+    operations: ["get"],
+    validUntil,
+  });
+  const { presignedUrl } = await presignUrl(
+    {
+      clientSigningToken: token.clientSigningToken,
+      delegationToken: token.delegationToken,
+    },
+    {
+      operation: "get",
+      pathname,
+      access: "private",
+    }
+  );
+  return presignedUrl;
 }
 
 function cryptoRandom(n: number): string {

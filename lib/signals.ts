@@ -368,8 +368,18 @@ export type RegionAttribution = {
 };
 
 export type BrainMap = {
-  /** Vercel Blob URL to the brand-styled peak-frame PNG (Phase 1) */
+  /**
+   * Pre-signed Vercel Blob URL to the brand-styled peak-frame PNG.
+   * Generated with a short expiry (~24h) for the Confirmation screen.
+   * The delivery cron re-signs from `image_pathname` at email-send time
+   * since signed URLs eventually expire.
+   */
   image_url: string;
+  /**
+   * Vercel Blob pathname (NOT a URL) — stable source of truth for the
+   * stored PNG. Use this to mint fresh signed URLs at display time.
+   */
+  image_pathname: string;
   /** Phase 2: Vercel Blob URL to synced MP4. Null until brain video ships. */
   video_url: string | null;
   /** Top regions by activation, descending */
@@ -378,6 +388,35 @@ export type BrainMap = {
   dominant_yeo_network: string | null;
   /** Index of the peak timestep in the TRIBE (T, V) output — provenance */
   peak_timestep: number;
+
+  /**
+   * Pre-signed Vercel Blob URL to the per-frame activation tensor — float16
+   * binary, row-major (frame_count × vertex_count), little-endian. The
+   * Confirmation BrainCanvas reads this and drives a three.js cortex in
+   * sync with the audio scrubber. Null if the brain video pipeline
+   * couldn't pack a tensor (e.g. handler returned only the peak PNG).
+   */
+  activations_url: string | null;
+  /** Pathname for cron re-signing (same pattern as image_pathname). */
+  activations_pathname: string | null;
+  /** Number of frames in the activations tensor (== frame_times.length). */
+  frame_count: number;
+  /** Vertices per frame — equals LH + RH fsaverage5 (≈ 20484). */
+  vertex_count: number;
+  /**
+   * Audio-time (seconds, relative to the concatenated multi-take recording)
+   * of each frame in the activations tensor. Frontend uses binary search
+   * against audio.currentTime to pick the active frame. Empty if no video.
+   */
+  frame_times: number[];
+  /**
+   * Index of the peak frame in the SUBSAMPLED activations tensor. May
+   * differ from `peak_timestep` if the original (T, V) tensor was
+   * downsampled. Used to highlight the peak frame in the canvas.
+   */
+  peak_timestep_packed: number;
+  /** Total concatenated audio duration in seconds, per ffprobe. */
+  audio_duration_seconds: number;
 };
 
 /* ─────────────────────────────────────────────────────────────────────────

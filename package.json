@@ -11,6 +11,7 @@
     "evals": "node --env-file=.env.local --import tsx evals/run-evals.ts"
   },
   "dependencies": {
+    "@types/three": "^0.184.1",
     "@vercel/blob": "^2.4.0",
     "afinn-165": "^2.0.2",
     "next": "^15.0.3",
@@ -18,7 +19,8 @@
     "postgres": "^3.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "resend": "^4.0.1"
+    "resend": "^4.0.1",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Logo from "@/components/Logo";
+import BrainCanvas from "@/components/BrainCanvas";
 import type {
+  BrainMap,
   CorticalRegion,
   RegionAttribution,
   SignalData,
@@ -60,7 +62,7 @@ export default function Confirmation({
               synthesis={signals.synthesis ?? null}
               fallback={fallbackIntro(signals)}
             />
-            <MediaRow takes={takes} brainImageUrl={signals.brain_map?.image_url ?? null} />
+            <MediaRow takes={takes} brainMap={signals.brain_map ?? null} />
             <ReasoningIntro />
             <WhatYourWordsSaid signals={signals} />
             <BrainRegions
@@ -144,23 +146,67 @@ function fallbackIntro(s: SignalData): string {
 
 function MediaRow({
   takes,
-  brainImageUrl,
+  brainMap,
 }: {
   takes: Take[];
-  brainImageUrl: string | null;
+  brainMap: BrainMap | null;
 }) {
+  // Track global audio time across the concatenated multi-take recording.
+  // AudioPlayer plays takes individually; we translate (takeIdx,
+  // takeCurrentTime) into a single timeline value the BrainCanvas can use
+  // to look up the active TRIBE frame.
+  const [globalTime, setGlobalTime] = useState(0);
+
+  // Precompute cumulative offsets so the callback below is O(1). Indexed
+  // by take number: offsets[i] = total duration of takes[0..i-1].
+  const offsets = useMemo(() => {
+    const out = new Array<number>(takes.length);
+    let acc = 0;
+    for (let i = 0; i < takes.length; i++) {
+      out[i] = acc;
+      acc += takes[i].durationSeconds || 0;
+    }
+    return out;
+  }, [takes]);
+
+  const onTakeTime = (takeIdx: number, takeCurrentTime: number) => {
+    setGlobalTime((offsets[takeIdx] ?? 0) + takeCurrentTime);
+  };
+
+  const brainImageUrl = brainMap?.image_url ?? null;
+  const hasActivations =
+    !!brainMap?.activations_url &&
+    !!brainMap.frame_times.length &&
+    brainMap.frame_count > 0 &&
+    brainMap.vertex_count > 0;
+
   if (!takes.length && !brainImageUrl) return null;
 
   return (
     <section className="media-row">
       <div className="media-audio">
         <span className="signal-label">Your audio</span>
-        <AudioPlayer takes={takes} />
+        <AudioPlayer takes={takes} onTakeTime={onTakeTime} />
       </div>
       {brainImageUrl && (
         <div className="media-brain">
-          <span className="signal-label">Cortical activation · peak frame</span>
-          <img className="media-brain-image" src={brainImageUrl} alt="Cortical activation map" />
+          <span className="signal-label">
+            Cortical activation {hasActivations ? "· live with your voice" : "· peak frame"}
+          </span>
+          {hasActivations && brainMap ? (
+            <BrainCanvas
+              meshUrl="/brain/fsaverage5.bin"
+              activationsUrl={brainMap.activations_url!}
+              frameTimes={brainMap.frame_times}
+              vertexCount={brainMap.vertex_count}
+              frameCount={brainMap.frame_count}
+              peakFramePacked={brainMap.peak_timestep_packed}
+              currentTime={globalTime}
+              fallbackImageUrl={brainImageUrl}
+            />
+          ) : (
+            <img className="media-brain-image" src={brainImageUrl} alt="Cortical activation map" />
+          )}
           <p className="media-brain-foot">
             TRIBE v2 · research use only
           </p>
@@ -170,7 +216,16 @@ function MediaRow({
   );
 }
 
-function AudioPlayer({ takes }: { takes: Take[] }) {
+function AudioPlayer({
+  takes,
+  onTakeTime,
+}: {
+  takes: Take[];
+  /** Fires on every timeupdate AND on take switch so the parent can
+   *  recompute global audio time. takeIdx is the currently-playing take;
+   *  takeCurrentTime is seconds within that take. */
+  onTakeTime?: (takeIdx: number, takeCurrentTime: number) => void;
+}) {
   // Generate object URLs for each take. Cleanup on unmount.
   const urls = useMemo(
     () => takes.map((t) => URL.createObjectURL(t.audioBlob)),
@@ -206,15 +261,19 @@ function AudioPlayer({ takes }: { takes: Take[] }) {
     const onTime = () => {
       const dur = effectiveDuration();
       setProgress(dur > 0 ? Math.min(1, a.currentTime / dur) : 0);
+      onTakeTime?.(activeIdx, a.currentTime);
     };
     const onEnd = () => setIsPlaying(false);
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("ended", onEnd);
+    // Emit once on take switch so the brain canvas snaps to the new
+    // take's start frame before the user hits play.
+    onTakeTime?.(activeIdx, a.currentTime);
     return () => {
       a.removeEventListener("timeupdate", onTime);
       a.removeEventListener("ended", onEnd);
     };
-  }, [activeIdx, knownDuration]);
+  }, [activeIdx, knownDuration, onTakeTime]);
 
   const togglePlay = () => {
     const a = audioRef.current;
@@ -240,6 +299,7 @@ function AudioPlayer({ takes }: { takes: Take[] }) {
       return;
     }
     setProgress(pct);
+    onTakeTime?.(activeIdx, target);
   };
 
   return (
