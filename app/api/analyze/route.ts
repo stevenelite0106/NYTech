@@ -17,9 +17,9 @@ import type { RegisterData } from "@/lib/pitch";
 import { QUESTIONS } from "@/lib/prompts";
 
 export const runtime = "nodejs";
-/** Phase 1 budget: Whisper (~10s on a 4-min concat) + GPT extraction (~5s) +
- *  TRIBE (~30–60s CPU) + synthesis (~5–10s) = up to ~90s end-to-end. Bumped
- *  ceiling for headroom. */
+/** Vercel Pro caps serverless functions at 300s. Sized to fit even a worst-
+ *  case cold-cache RunPod render (~3 min) plus Whisper (~15s) + GPT
+ *  extraction (~8s) + synthesis (~10s) + uploads/DB (~5s). */
 export const maxDuration = 300;
 
 const MAX_AUDIO_BYTES_PER_TAKE = 20 * 1024 * 1024;

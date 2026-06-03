@@ -40,13 +40,15 @@ export async function renderBrain(audio: Blob): Promise<BrainMap | null> {
     ? "wav"
     : "webm";
 
-  // /runsync blocks until the job completes (or hits RunPod's request
-  // timeout, ~5 min). Fits our Vercel maxDuration=180s with brain render
-  // taking ~30-60s on a 24GB GPU.
-  const target = `https://api.runpod.ai/v2/${endpointId}/runsync`;
-  console.log("[brain] POST", target);
+  // /runsync blocks until either the job completes OR RunPod's internal
+  // sync-timeout (~30s default) elapses. On a cold worker our render takes
+  // 1–3 minutes, so the initial call will frequently return with
+  // status="IN_PROGRESS" + a job ID. We then poll /status/{jobId} until
+  // the job hits a terminal state.
+  const runsyncUrl = `https://api.runpod.ai/v2/${endpointId}/runsync`;
+  console.log("[brain] POST", runsyncUrl);
 
-  const res = await fetch(target, {
+  const res = await fetch(runsyncUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -65,29 +67,51 @@ export async function renderBrain(audio: Blob): Promise<BrainMap | null> {
     throw new Error(`runpod ${res.status}: ${body.slice(0, 200)}`);
   }
 
-  const runpodResponse = (await res.json()) as {
+  type RunpodOutput = {
+    brain_image_base64: string;
+    top_regions: CorticalRegion[];
+    dominant_yeo_network: string | null;
+    transcript_text: string;
+    peak_timestep: number;
+    error?: string;
+  };
+  type RunpodResponse = {
     id: string;
     status: string;
-    output?: {
-      brain_image_base64: string;
-      top_regions: CorticalRegion[];
-      dominant_yeo_network: string | null;
-      transcript_text: string;
-      peak_timestep: number;
-      error?: string;
-    };
+    output?: RunpodOutput;
     error?: string;
     delayTime?: number;
     executionTime?: number;
   };
 
-  // RunPod sometimes responds with status="IN_QUEUE" or "IN_PROGRESS" if
-  // /runsync hits its internal timeout before the job finishes. Treat
-  // anything other than COMPLETED as a failure for our sync use case.
+  let runpodResponse = (await res.json()) as RunpodResponse;
+
+  // If RunPod's sync window expired, poll /status until done. Budget here
+  // is sized to fit Vercel's maxDuration=180s with headroom for the rest
+  // of the analyze pipeline.
+  if (runpodResponse.status !== "COMPLETED" && runpodResponse.status !== "FAILED") {
+    console.log(`[brain] /runsync returned ${runpodResponse.status}; polling /status/${runpodResponse.id}`);
+    runpodResponse = await pollRunpodJob({
+      endpointId,
+      apiKey,
+      jobId: runpodResponse.id,
+      // Vercel Pro caps the surrounding function at 300s. Budget 250s
+      // here, leaving ~50s for Whisper + GPT extract + GPT synthesis +
+      // DB write + uploads in /api/analyze. Cold-cache RunPod renders
+      // are ~3 min; warm-worker steady-state is ~45–60s, well inside.
+      maxWaitMs: 250_000,
+      pollIntervalMs: 3_000,
+    });
+  }
+
+  if (runpodResponse.status === "FAILED") {
+    throw new Error(
+      `runpod job FAILED; error=${runpodResponse.error ?? "(none)"}`
+    );
+  }
   if (runpodResponse.status !== "COMPLETED") {
     throw new Error(
-      `runpod status=${runpodResponse.status}; ` +
-      `error=${runpodResponse.error ?? "(none)"}`
+      `runpod job did not complete (final status=${runpodResponse.status})`
     );
   }
 
@@ -127,4 +151,68 @@ function cryptoRandom(n: number): string {
   const bytes = new Uint8Array(n);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Poll RunPod's /status/{jobId} endpoint until the job reaches a terminal
+ * state (COMPLETED / FAILED / CANCELLED) or our budget runs out.
+ *
+ * RunPod /runsync only blocks for ~30s before returning IN_PROGRESS with
+ * a job id; for cold-cache renders (1–3 min) we need to follow up via
+ * /status. Polling cadence (3s) balances RunPod's API rate limits against
+ * timely completion detection.
+ */
+async function pollRunpodJob(opts: {
+  endpointId: string;
+  apiKey: string;
+  jobId: string;
+  maxWaitMs: number;
+  pollIntervalMs: number;
+}): Promise<{
+  id: string;
+  status: string;
+  output?: {
+    brain_image_base64: string;
+    top_regions: CorticalRegion[];
+    dominant_yeo_network: string | null;
+    transcript_text: string;
+    peak_timestep: number;
+    error?: string;
+  };
+  error?: string;
+}> {
+  const { endpointId, apiKey, jobId, maxWaitMs, pollIntervalMs } = opts;
+  const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`;
+  const startedAt = Date.now();
+
+  while (true) {
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+
+    const res = await fetch(statusUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      throw new Error(`runpod /status ${res.status}`);
+    }
+    const body = await res.json();
+    if (
+      body.status === "COMPLETED" ||
+      body.status === "FAILED" ||
+      body.status === "CANCELLED"
+    ) {
+      return body;
+    }
+
+    if (Date.now() - startedAt > maxWaitMs) {
+      // Best-effort cancel so the worker doesn't keep running on our dime.
+      fetch(`https://api.runpod.ai/v2/${endpointId}/cancel/${jobId}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+      }).catch(() => {});
+      throw new Error(
+        `runpod job ${jobId} did not finish within ${Math.round(maxWaitMs / 1000)}s ` +
+        `(last status=${body.status}); cancelled`
+      );
+    }
+  }
 }
