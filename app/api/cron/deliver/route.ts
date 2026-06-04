@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { del, issueSignedToken, presignUrl } from "@vercel/blob";
+import { issueSignedToken, presignUrl } from "@vercel/blob";
 import { sql, type Session } from "@/lib/db";
 import {
   resend,
@@ -18,11 +18,16 @@ export const maxDuration = 300;
 const LISTEN_WINDOW_DAYS = 7;
 
 /**
- * Daily cron — two phases:
+ * Daily cron — single phase:
  *   1. Deliver: rows whose deliver_at has arrived. Mint a signed URL valid
  *      for LISTEN_WINDOW_DAYS, send the email, mark delivered_at.
- *   2. Cleanup: rows whose delivered_at is older than LISTEN_WINDOW_DAYS.
- *      Delete the blob and null out the pathname so we don't try again.
+ *
+ * Recordings + brain assets are retained INDEFINITELY (Phase 2 cleanup
+ * intentionally disabled). The email signed URL still expires after
+ * LISTEN_WINDOW_DAYS — the data persists in Blob storage, but recipients
+ * lose access via the original link. To restore later access we'd need a
+ * re-signing endpoint that takes a session id + auth and returns fresh
+ * URLs from the stored pathnames.
  *
  * Recordings are private throughout — the only readable link is the signed
  * URL the recipient receives in their email, and it expires.
@@ -36,7 +41,6 @@ export async function GET(req: Request) {
   }
 
   const sent: Array<{ id: string; status: "sent" | "failed"; error?: string }> = [];
-  const deleted: Array<{ id: string; status: "deleted" | "failed"; error?: string }> = [];
 
   // ---------------- Phase 1: Deliver ----------------
   const due = await sql<Session[]>`
@@ -131,58 +135,11 @@ export async function GET(req: Request) {
     }
   }
 
-  // ---------------- Phase 2: Cleanup ----------------
-  // Delete blobs for sessions delivered more than LISTEN_WINDOW_DAYS ago.
-  // Per session: legacy audio_pathname + every per-take pathname + brain
-  // image + brain activations. We pull signal_data so we know all of them.
-  const expired = await sql<Pick<Session, "id" | "audio_pathname" | "signal_data">[]>`
-    select id, audio_pathname, signal_data from sessions
-    where audio_pathname is not null
-      and delivered_at is not null
-      and delivered_at <= now() - interval '${sql.unsafe(String(LISTEN_WINDOW_DAYS))} days'
-    limit 200
-  `;
-
-  for (const row of expired) {
-    try {
-      const toDelete: string[] = [];
-      if (row.audio_pathname) toDelete.push(row.audio_pathname);
-      const takes = row.signal_data?.takes ?? [];
-      for (const t of takes) {
-        // Don't double-delete if audio_pathname happens to equal the first
-        // take's pathname (which is the case for new sessions).
-        if (t.pathname && !toDelete.includes(t.pathname)) toDelete.push(t.pathname);
-      }
-      const brainImage = row.signal_data?.brain_map?.image_pathname;
-      if (brainImage) toDelete.push(brainImage);
-      const brainActivations = row.signal_data?.brain_map?.activations_pathname;
-      if (brainActivations) toDelete.push(brainActivations);
-
-      if (toDelete.length === 0) continue;
-
-      // @vercel/blob's del() accepts an array — single round-trip.
-      await del(toDelete);
-      await sql`
-        update sessions
-        set audio_pathname = null, audio_url = ''
-        where id = ${row.id}
-      `;
-      deleted.push({ id: row.id, status: "deleted" });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn("cleanup failed", row.id, message);
-      deleted.push({ id: row.id, status: "failed", error: message });
-    }
-  }
-
   return NextResponse.json({
     ok: true,
     delivered: sent.filter((r) => r.status === "sent").length,
     deliveryFailed: sent.filter((r) => r.status === "failed").length,
-    cleaned: deleted.filter((r) => r.status === "deleted").length,
-    cleanupFailed: deleted.filter((r) => r.status === "failed").length,
     sent,
-    deleted,
   });
 }
 
