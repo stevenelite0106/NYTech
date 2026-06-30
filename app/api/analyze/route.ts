@@ -2,6 +2,7 @@ import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { transcribe, analyzeText } from "@/lib/analyze";
+import { transcodeToMp3 } from "@/lib/transcode";
 import { renderBrain } from "@/lib/brain";
 import { synthesize } from "@/lib/synthesis";
 import { empiricalSentiment } from "@/lib/sentiment-empirical";
@@ -109,26 +110,54 @@ export async function POST(req: Request) {
       };
 
       try {
-        // Concatenate IN MEMORY for Whisper, which needs continuous audio
-        // for word-level timestamps that span all questions. We do NOT
-        // upload this concat to Blob — byte-level WebM concat produces a
-        // file where browsers only play the first segment, so each take
-        // goes to Blob as its own playable file below.
-        const concatenated = await concatBlobs(takes.map((t) => t.audio));
         const totalDuration = takes.reduce((s, t) => s + t.durationSeconds, 0);
+
+        // Normalise every take to MP3 up front. The booth records WebM/Opus
+        // (Chrome) or MP4/AAC (Safari/iPad); Safari can't decode WebM at all,
+        // so we transcode to MP3 — the one format that plays in every browser
+        // and webmail client. Each transcode falls back to the ORIGINAL blob
+        // on failure so a bad ffmpeg run never blocks the booth (worst case:
+        // that one take keeps its source format). The resulting blobs are used
+        // for storage, the Whisper concat, and the brain render alike.
+        const playableTakes = await Promise.all(
+          takes.map(async (take) => {
+            const srcExt = pickExt(take.audio.type).replace(".", "");
+            try {
+              const mp3 = await transcodeToMp3(take.audio, srcExt);
+              return { take, blob: mp3, contentType: "audio/mpeg", ext: ".mp3" };
+            } catch (err) {
+              console.warn(
+                `transcode failed for q${take.questionIndex}, storing original:`,
+                err instanceof Error ? err.message : err
+              );
+              return {
+                take,
+                blob: take.audio,
+                contentType: take.audio.type || "audio/webm",
+                ext: pickExt(take.audio.type),
+              };
+            }
+          })
+        );
+
+        // Concatenate IN MEMORY for Whisper, which needs continuous audio for
+        // word-level timestamps that span all questions. We do NOT upload this
+        // concat to Blob — each take goes to Blob as its own playable file
+        // below. MP3 frame concatenation decodes far more reliably than the
+        // old byte-level WebM concat.
+        const concatenated = await concatBlobs(playableTakes.map((p) => p.blob));
 
         // ── Stage 1: receive — upload each take individually to Blob ─────
         // Folder-per-session keeps it easy to list/cleanup all of a
         // session's takes with a single prefix. Pathname shape:
-        //   recordings/<timestamp>-<rand>/q<N>.webm
+        //   recordings/<timestamp>-<rand>/q<N>.mp3
         const sessionFolder = `${Date.now()}-${cryptoRandom(12)}`;
         const takeUploads = await Promise.all(
-          takes.map(async (take) => {
-            const ext = pickExt(take.audio.type);
+          playableTakes.map(async ({ take, blob, contentType, ext }) => {
             const key = `recordings/${sessionFolder}/q${take.questionIndex}${ext}`;
-            const uploaded = await put(key, take.audio, {
+            const uploaded = await put(key, blob, {
               access: "private",
-              contentType: take.audio.type || "audio/webm",
+              contentType,
               addRandomSuffix: false,
             });
             return { uploaded, take };
@@ -168,7 +197,7 @@ export async function POST(req: Request) {
         // the Confirmation-screen BrainCanvas syncing with every take, not
         // just the longest one.
         const extractionPromise = analyzeText(taggedTranscript);
-        const brainPromise = renderBrain(takes.map((t) => ({ audio: t.audio }))).catch((err) => {
+        const brainPromise = renderBrain(playableTakes.map((p) => ({ audio: p.blob }))).catch((err) => {
           console.warn("brain render failed:", err instanceof Error ? err.message : err);
           return null as BrainMap | null;
         });

@@ -238,7 +238,18 @@ function formatTimer(total: number) {
 }
 
 function pickMimeType(): string | null {
-  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  // Prefer AAC-in-MP4: it's the only format that plays natively in Safari
+  // (desktop + iOS) AND Chrome/Firefox. Safari cannot decode WebM/Opus at
+  // all, so a WebM recording is unplayable in the delivered email on Safari.
+  // The booth iPad records MP4 here; only desktop Chrome/Firefox (which can't
+  // record MP4) fall through to WebM — see the transcode note in /api/analyze.
+  const candidates = [
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/mp4",
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+  ];
   for (const c of candidates) {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(c)) return c;
   }
