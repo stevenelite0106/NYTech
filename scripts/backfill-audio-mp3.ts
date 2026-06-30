@@ -187,9 +187,11 @@ async function main() {
   await sql.end();
 }
 
-/** Wrap raw bytes in a Blob for transcodeToMp3 (which takes a Blob). */
+/** Wrap raw bytes in a Blob for transcodeToMp3 (which takes a Blob). The
+ *  Uint8Array wrap gives a plain-ArrayBuffer-backed BlobPart (Node's Buffer
+ *  types as ArrayBufferLike, which the DOM Blob type rejects). */
 function blob(buf: Buffer, pathname: string): Blob {
-  return new Blob([buf], { type: mimeForPath(pathname) });
+  return new Blob([new Uint8Array(buf)], { type: mimeForPath(pathname) });
 }
 
 function mimeForPath(pathname: string): string {

@@ -38,7 +38,9 @@ export async function transcodeToMp3(input: Blob, srcExt: string): Promise<Blob>
     ]);
     const out = await readFile(outPath);
     if (out.length === 0) throw new Error("ffmpeg produced an empty file");
-    return new Blob([out], { type: "audio/mpeg" });
+    // Wrap in a Uint8Array so the BlobPart is backed by a plain ArrayBuffer
+    // (Node's Buffer types as ArrayBufferLike, which the DOM Blob type rejects).
+    return new Blob([new Uint8Array(out)], { type: "audio/mpeg" });
   } finally {
     // Best-effort temp cleanup — /tmp is ephemeral but bounded, don't leak.
     await rm(dir, { recursive: true, force: true }).catch(() => {});
