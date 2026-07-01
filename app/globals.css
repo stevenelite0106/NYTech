@@ -1584,3 +1584,80 @@ input, textarea { font: inherit; color: inherit; }
 
 /* iPad-friendly: prevent zoom on tap, allow input selection */
 input { font-size: 18px; user-select: text; }
+
+/* ----------------------------------------------------------------------------
+   Responsive
+   The booth runs on an iPad, but the flow should hold up on phones (portrait
+   + landscape) and smaller tablets. Base styles already use clamp() for stage
+   padding and hero type; these breakpoints tighten the fixed-px chrome —
+   cards, grids, CTAs, header/footer — so nothing overflows or crowds on
+   narrow or short viewports. (A max-width: 720px block above already stacks
+   .words-gauges and reshapes .brain-hero; these layer on top of it.)
+---------------------------------------------------------------------------- */
+
+/* Small tablets & large phones */
+@media (max-width: 768px) {
+  .output-body > section { margin-bottom: 24px; }
+  .result-hero { padding: 28px 22px 24px; }
+  .brain-hero { padding: 22px 20px 20px; }
+  .signal-line { grid-template-columns: 96px 1fr; column-gap: 14px; }
+}
+
+/* Phones */
+@media (max-width: 560px) {
+  .stage { padding: 20px 18px; }
+
+  /* Chrome: keep it, just calm the type so it doesn't wrap or collide. */
+  .stage-header .meta,
+  .recording-meta { font-size: 10px; letter-spacing: 0.12em; }
+  .stage-footer {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    column-gap: 14px;
+  }
+
+  /* Hero type below the desktop clamp floor. */
+  .headline { font-size: clamp(28px, 8vw, 40px); max-width: 18ch; }
+  .subtext { font-size: 15px; max-width: 100%; }
+  .recording-question { font-size: clamp(18px, 5.4vw, 22px); }
+  .result-title { font-size: clamp(22px, 6.6vw, 30px); }
+  .delivery-date { font-size: clamp(28px, 9vw, 40px); }
+
+  /* CTA: full-width (capped) so it's an easy thumb target. */
+  .linear-btn { width: 100%; max-width: 400px; min-width: 0; }
+  .field-grid { gap: 22px; }
+
+  /* Report cards: reclaim horizontal space. */
+  .result-hero { padding: 22px 18px 20px; border-radius: 16px; }
+  .brain-hero { padding: 18px 16px 16px; border-radius: 16px; }
+  .output-body > section { margin-bottom: 20px; }
+
+  /* Findings + signal rows: stop squeezing the text column. */
+  .result-finding { grid-template-columns: 22px 1fr; column-gap: 12px; }
+  .signal-line { grid-template-columns: 1fr; row-gap: 2px; }
+  .signal-label { padding-top: 0; }
+  .words-gauges { gap: 20px; }
+
+  /* Brain stage: shorter so it doesn't own the whole scroll. */
+  .brain-hero-stage { min-height: 200px; aspect-ratio: 4 / 3; }
+}
+
+/* Small phones */
+@media (max-width: 380px) {
+  .stage { padding: 16px 14px; }
+  .headline { font-size: clamp(24px, 8.5vw, 32px); }
+  .stage-header .meta { display: none; } /* the brand lockup carries it */
+  .linear-btn { padding: 15px 22px; }
+}
+
+/* Short viewports (landscape phones, split-screen). The flow is vertically
+   centered, so trim vertical rhythm to keep the CTA reachable without scroll. */
+@media (max-height: 560px) {
+  .stage { padding-top: 16px; padding-bottom: 16px; }
+  .rule { margin: 16px 0; }
+  .subtext { margin-top: 14px; }
+  .waveform-container { margin: 12px 0; }
+  .brain-hero-stage { min-height: 170px; }
+}
