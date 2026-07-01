@@ -68,7 +68,6 @@ export function deliveryHtml({
   audioUrl,
   takeUrls,
   recordedAt,
-  eventName,
   signals,
 }: DeliveryPayload) {
   const dateStr = recordedAt.toLocaleDateString("en-US", {
@@ -76,7 +75,6 @@ export function deliveryHtml({
     day: "numeric",
     year: "numeric",
   });
-  const context = eventName ? `${dateStr} — ${eventName}` : dateStr;
   // Founding100 landing page. Env override wins; otherwise the live landing.
   const foundingUrl = process.env.FOUNDING_MEMBER_URL || "https://landing.spaceofmind.com/";
   const parsedQuestions = parsePrompt(prompt);
@@ -110,21 +108,20 @@ export function deliveryHtml({
         <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid #E3E3FF;border-radius:24px;padding:40px;">
 
           <tr><td style="font-family:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#5F6264;padding-bottom:24px;">
-            Space of Mind · Future Self Studio · ${context}
+            Space of Mind · ${dateStr}
           </td></tr>
 
           <tr><td style="border-top:1px solid #E3E3FF;padding-top:24px;padding-bottom:6px;">
             <div style="font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1B1B2F;padding-bottom:14px;">${name},</div>
             <div style="font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:500;font-size:26px;line-height:1.25;letter-spacing:-0.01em;color:#1B1B2F;">
-              Ten days ago, you did something most people never do.
+              Minutes ago, you did something most people never do.
             </div>
           </td></tr>
 
           <tr><td style="padding-top:22px;">
             <table width="100%" cellpadding="0" cellspacing="0">
-              ${para("You said her name out loud. You described exactly who she is — how she moves, what she carries differently, the thing she believes about herself that you haven&rsquo;t fully claimed yet.")}
-              ${para("You spoke her into the room.")}
-              ${para("And we were listening.")}
+              ${para("You described exactly who she is — how she moves, what she carries differently, the thing she believes about herself that you haven&rsquo;t fully claimed yet.")}
+              ${para("Most people keep her vague. You made her specific.")}
             </table>
           </td></tr>
 
@@ -156,7 +153,7 @@ export function deliveryHtml({
             <table width="100%" cellpadding="0" cellspacing="0">
               ${para("That gap is the work. And the work deserves a home.")}
               ${para("Which is exactly why we built Space of Mind.")}
-              ${para("What you did at the Future Self Studio was a glimpse of what&rsquo;s possible when you get out of your own way and actually meet yourself — your future self — with honesty.")}
+              ${para("What you just did was a glimpse of what&rsquo;s possible when you get out of your own way and actually meet yourself — your future self — with honesty.")}
               ${para("That&rsquo;s what our app is built to hold.")}
               ${para("Space of Mind is designed to close the gap between who you are today and who you already know you&rsquo;re capable of being. It keeps your vision alive, tracks the beliefs you&rsquo;re actively shedding, and puts you back in conversation with the version of yourself you spoke about in that room — not just once, but every day.")}
               ${para("You&rsquo;re invited to become a <strong style=\"font-weight:600;\">Founding Member</strong> of Space of Mind.")}
@@ -560,13 +557,11 @@ export function deliveryText({
   audioUrl,
   takeUrls,
   recordedAt,
-  eventName,
   signals,
 }: DeliveryPayload) {
   const dateStr = recordedAt.toLocaleDateString("en-US", {
     month: "long", day: "numeric", year: "numeric",
   });
-  const context = eventName ? `${dateStr} — ${eventName}` : dateStr;
   const foundingUrl = process.env.FOUNDING_MEMBER_URL || "https://landing.spaceofmind.com/";
 
   const transcript = signals?.transcript;
@@ -576,17 +571,15 @@ export function deliveryText({
   const q5 = extractQuote(transcript, 5);
 
   const lines: string[] = [
-    `Space of Mind · Future Self Studio · ${context}`,
+    `Space of Mind · ${dateStr}`,
     "",
     `${firstName},`,
     "",
-    "Ten days ago, you did something most people never do.",
+    "Minutes ago, you did something most people never do.",
     "",
-    "You said her name out loud. You described exactly who she is — how she moves, what she carries differently, the thing she believes about herself that you haven't fully claimed yet.",
+    "You described exactly who she is — how she moves, what she carries differently, the thing she believes about herself that you haven't fully claimed yet.",
     "",
-    "You spoke her into the room.",
-    "",
-    "And we were listening.",
+    "Most people keep her vague. You made her specific.",
     "",
   ];
 
@@ -657,7 +650,7 @@ export function deliveryText({
   lines.push("");
   lines.push("Which is exactly why we built Space of Mind.");
   lines.push("");
-  lines.push("What you did at the Future Self Studio was a glimpse of what's possible when you get out of your own way and actually meet yourself — your future self — with honesty.");
+  lines.push("What you just did was a glimpse of what's possible when you get out of your own way and actually meet yourself — your future self — with honesty.");
   lines.push("");
   lines.push("That's what our app is built to hold.");
   lines.push("");
