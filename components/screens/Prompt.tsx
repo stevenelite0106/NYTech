@@ -17,7 +17,7 @@ export default function Prompt({
   onReady: () => void;
 }) {
   return (
-    <section className="stage fade-in">
+    <section className="stage stage-scrollable fade-in">
       <header className="stage-header">
         <span className="brand-lockup">
           <Logo height={26} />

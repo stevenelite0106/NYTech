@@ -378,6 +378,21 @@ input, textarea { font: inherit; color: inherit; }
   letter-spacing: -0.005em;
 }
 
+/* Tall booth screens (Prompt overview, etc.) — scroll within the stage
+   instead of clipping. html/body stay overflow:hidden for the kiosk shell. */
+.stage-scrollable {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.stage-scrollable .stage-body {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  padding: clamp(16px, 3vh, 32px) 0 clamp(24px, 4vh, 48px);
+  min-height: 0;
+}
+
 .between-eyebrow {
   font-family: var(--font-mono);
   font-size: 10px;
