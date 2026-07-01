@@ -35,7 +35,7 @@ export type TakeAudioUrl = {
 };
 
 export function deliverySubject() {
-  return "Ten days ago, you described her perfectly.";
+  return "Minutes ago, you described her perfectly.";
 }
 
 /**
@@ -94,7 +94,7 @@ export function deliveryHtml({
   const name = escapeHtml(firstName);
 
   // Space of Mind brand palette. A personal letter from Karolina (CEO &
-  // Co-Founder), sent 10 days post-event: narrative + the participant's own
+  // Co-Founder), sent shortly after the booth: narrative + the participant's own
   // words + their voice data + recording, closing on the Founding100 invite.
   return `<!doctype html>
 <html>

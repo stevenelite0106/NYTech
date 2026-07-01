@@ -3,7 +3,7 @@ import type { BrainMap, CorticalRegion } from "@/lib/signals";
 
 /** Confirmation-screen signed URL validity. 24 hours covers the booth
  *  experience + any operator debugging the same day. The cron mints a
- *  fresh URL when sending the 10-day-later email. */
+ *  fresh URL when sending the delivery email. */
 const CONFIRMATION_URL_VALID_HOURS = 24;
 
 /**

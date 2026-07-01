@@ -37,7 +37,7 @@ const STAGES: Stage[] = [
   { id: "ownership", name: "Tracking first-person ownership", subtext: "How clearly you're claiming the story" },
   { id: "brain",     name: "Mapping cortical activations",    subtext: "Mapping where the patterns lit up" },
   { id: "synthesis", name: "Drawing the through-line",        subtext: "Putting words and brain in one frame" },
-  { id: "seal",      name: "Sealing for delivery",            subtext: "Ten days. On the dot." },
+  { id: "seal",      name: "Sealing for delivery",            subtext: "On its way to your inbox" },
 ];
 
 type StageStatus = "pending" | "active" | "done";

@@ -70,7 +70,7 @@ export default function Confirmation({
             {/* Top brain regions panel hidden for now — interactive cortex
                 above covers this territory visually. Restore by
                 re-rendering <BrainRegions /> with the same props. */}
-            <DeliveryFooter firstName={firstName} dateLabel={dateLabel} />
+            <DeliveryFooter firstName={firstName} />
           </>
         ) : (
           <p className="subtext">
@@ -126,7 +126,7 @@ function ResultHero({
         </ol>
       ) : (
         <p className="subtext" style={{ marginTop: 20 }}>
-          We&rsquo;ll send you the full read-out with your email in ten days.
+          We&rsquo;ll send you the full read-out with your email in about a minute.
         </p>
       )}
     </section>
@@ -543,15 +543,15 @@ function BrainRegions({
    6. Delivery footer (date + brand line)
    ───────────────────────────────────────────────────────────────────── */
 
-function DeliveryFooter({ firstName, dateLabel }: { firstName: string; dateLabel: string }) {
+function DeliveryFooter({ firstName }: { firstName: string }) {
   return (
     <section className="delivery-block">
       <hr className="rule" />
       <p className="delivery-label">
-        {firstName}, your future self will receive this on
+        {firstName}, it&rsquo;s on its way to your inbox
       </p>
       <p className="delivery-date">
-        <em>{dateLabel}</em>
+        <em>In about a minute</em>
       </p>
       <p className="brand-line">
         <strong>She&rsquo;s already there.</strong> You&rsquo;re on your way.

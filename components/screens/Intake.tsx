@@ -85,7 +85,7 @@ export default function Intake({ initial, onContinue }: Props) {
       </div>
 
       <footer className="stage-footer">
-        <span>Not stored beyond 10-day delivery</span>
+        <span>Only used to send you your recording</span>
         <span>Privacy by design</span>
       </footer>
     </section>

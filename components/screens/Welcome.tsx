@@ -34,7 +34,7 @@ export default function Welcome({ onBegin }: { onBegin: () => void }) {
         </h1>
         <p className="subtext">
           One take.<br />
-          Ten days from now, you&rsquo;ll hear it back.
+          A minute from now, you&rsquo;ll hear it back.
         </p>
         <button className="linear-btn" style={{ marginTop: 40 }} onClick={onBegin} autoFocus>
           Begin <span className="arrow">→</span>

@@ -12,7 +12,7 @@ import type { SignalData } from "@/lib/signals";
 export const runtime = "nodejs";
 
 /**
- * Dev/preview-only renderer for the 10-day follow-up email. Lets you eyeball
+ * Dev/preview-only renderer for the follow-up email. Lets you eyeball
  * the real `deliveryHtml` / `deliveryText` output without recording a booth
  * session or waiting for the delivery cron.
  *
