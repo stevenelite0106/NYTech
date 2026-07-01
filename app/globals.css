@@ -1622,15 +1622,34 @@ input { font-size: 18px; user-select: text; }
 @media (max-width: 560px) {
   .stage { padding: 20px 18px; }
 
-  /* Chrome: keep it, just calm the type so it doesn't wrap or collide. */
-  .stage-header .meta,
-  .recording-meta { font-size: 10px; letter-spacing: 0.12em; }
-  .stage-footer {
-    font-size: 9px;
-    letter-spacing: 0.12em;
+  /* Header: a long meta line ("Five questions · One take each · Name") must
+     wrap to the right within its own space, never overlapping the logo. */
+  .stage-header { flex-wrap: wrap; gap: 4px 12px; }
+  .stage-header .meta {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    flex: 1 1 auto;
+    text-align: right;
+    line-height: 1.4;
+  }
+
+  /* Recording meta: let name·question + timer wrap instead of colliding. */
+  .recording-meta {
+    font-size: 10px;
+    letter-spacing: 0.1em;
     flex-wrap: wrap;
-    row-gap: 4px;
-    column-gap: 14px;
+    gap: 2px 10px;
+  }
+
+  /* Footer: stack the two info lines so "Question 1 of 5 next" and
+     "30 seconds minimum per take" never crush together at space-between. */
+  .stage-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    line-height: 1.4;
   }
 
   /* Hero type below the desktop clamp floor. */
