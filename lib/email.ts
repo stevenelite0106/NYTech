@@ -161,10 +161,11 @@ export function deliveryHtml({
           </td></tr>
 
           <tr><td style="padding:6px 0 0;">
-            ${foundingBullet("Early access", "You&rsquo;re in before anyone else, before the public launch.")}
-            ${foundingBullet("A direct line to us", "Your experience shapes what we build next. We mean that.")}
-            ${foundingBullet("Founding Member pricing", "Locked in for life, no matter where the product goes.")}
-            ${foundingBullet("A community", "A private space of members sharing how they&rsquo;re meeting their future selves daily.")}
+            ${foundingBullet("Space of Mind app access", "24/7 access to the Space of Mind app, where you can access Future Self Training&trade; daily.")}
+            ${foundingBullet("Monthly live coaching calls", "Every month, you&rsquo;ll join a live call with a coach who knows this work. Bring what&rsquo;s actually in the way and leave with traction.")}
+            ${foundingBullet("A private community to keep each other accountable", "Access a private, curated community of women who are pushing the limits of what&rsquo;s possible and supporting each other in the in-between moments.")}
+            ${foundingBullet("A direct line into what we&rsquo;re building", "You&rsquo;re a co-creator. Your feedback, your needs, and your experience shape the product as it&rsquo;s built. You&rsquo;ll get regular updates on what&rsquo;s coming, and a real say in it.")}
+            ${foundingBullet("Founding member pricing, locked for life", "Whatever we charge when we open to the public, you&rsquo;ll never pay more than your founding rate. That price is yours, permanently.")}
           </td></tr>
 
           <tr><td style="padding:28px 0 6px;">
@@ -658,10 +659,11 @@ export function deliveryText({
   lines.push("");
   lines.push("You're invited to become a Founding Member of Space of Mind.");
   lines.push("");
-  lines.push("  • Early access — you're in before anyone else, before the public launch.");
-  lines.push("  • A direct line to us — your experience shapes what we build next. We mean that.");
-  lines.push("  • Founding Member pricing — locked in for life, no matter where the product goes.");
-  lines.push("  • A community — a private space of members sharing how they're meeting their future selves daily.");
+  lines.push("  • Space of Mind app access — 24/7 access to the Space of Mind app, where you can access Future Self Training™ daily.");
+  lines.push("  • Monthly live coaching calls — Every month, you'll join a live call with a coach who knows this work. Bring what's actually in the way and leave with traction.");
+  lines.push("  • A private community to keep each other accountable — Access a private, curated community of women who are pushing the limits of what's possible and supporting each other in the in-between moments.");
+  lines.push("  • A direct line into what we're building — You're a co-creator. Your feedback, your needs, and your experience shape the product as it's built. You'll get regular updates on what's coming, and a real say in it.");
+  lines.push("  • Founding member pricing, locked for life — Whatever we charge when we open to the public, you'll never pay more than your founding rate. That price is yours, permanently.");
   lines.push("");
   lines.push(`Claim Your Founding Member Spot → ${foundingUrl}`);
   lines.push("(Only 100 spots available)");
