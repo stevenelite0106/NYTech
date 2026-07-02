@@ -129,13 +129,12 @@ export function deliveryHtml({
 
           <tr><td style="padding-top:22px;">
             <table width="100%" cellpadding="0" cellspacing="0">
-              ${para("Here&rsquo;s what we heard — from everyone in that space, together:")}
               ${para("Your future self is not a vague aspiration. She is specific. You know her. You described the calm in her body, the way she doesn&rsquo;t apologize for taking up space, the way she walks into a room like she&rsquo;s already been there a hundred times. You said she&rsquo;s confident — not loud, not performing. Just certain.")}
               ${q2 ? para("You said:") + quoteRow(q2) : ""}
               ${q3 ? para("And you told us exactly where she needs to show up most:") + quoteRow(q3) : ""}
               ${q5 ? para("When it comes to what&rsquo;s standing in the way, you put it this way:") + quoteRow(q5) : ""}
               ${para("That&rsquo;s the story. One story. Running underneath every hesitation, every conversation you haven&rsquo;t started yet.")}
-              ${para("You named it. In that room, out loud.")}
+              ${para("You named it, out loud.")}
               ${para("That matters more than you know.")}
               ${q4 ? para("You also told us what staying has cost you.") + quoteRow(q4) : ""}
               ${para("The gap between who you are right now and who you described in that room — that&rsquo;s not a failure.")}
@@ -600,8 +599,6 @@ export function deliveryText({
     }
   }
 
-  lines.push("Here's what we heard — from everyone in that space, together:");
-  lines.push("");
   lines.push("Your future self is not a vague aspiration. She is specific. You know her. You described the calm in her body, the way she doesn't apologize for taking up space, the way she walks into a room like she's already been there a hundred times. You said she's confident — not loud, not performing. Just certain.");
   lines.push("");
   if (q2) {
@@ -621,7 +618,7 @@ export function deliveryText({
   }
   lines.push("That's the story. One story. Running underneath every hesitation, every conversation you haven't started yet.");
   lines.push("");
-  lines.push("You named it. In that room, out loud.");
+  lines.push("You named it, out loud.");
   lines.push("");
   lines.push("That matters more than you know.");
   lines.push("");
